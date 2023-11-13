@@ -1,0 +1,64 @@
+---
+- name: Provision Gneiss installation
+  hosts: localhost
+  connection: local
+
+  pre_tasks: 
+    - name: Check if Nix is installed
+      tags: [ always ]
+      command: command -v nix
+      register: is_nix_installed
+      changed_when: false
+      failed_when: false
+
+    - name: Check if Fedora Flatpak remote is enabled
+      tags: [ always ]
+      shell: flatpak remotes --system --columns=name | grep fedora
+      register: flatpak_fedora_system
+      changed_when: false
+      failed_when: false
+
+  tasks: 
+    - name: Set hostname
+      tags: [ always ]
+      become: true
+      hostname: 
+        name: "{{ hostname }}"
+
+    - name: Switch grub2 to BLS config files
+      tags: [ always ]
+      become: true
+      command: grub2-switch-to-blscfg
+      args: 
+        creates: /boot/grub2/.grub2-blscfg-supported
+
+    - name: Set kernel arguments -- Nvidia
+      tags: [ never, nvidia ]
+      become: true
+      command: >-
+        rpm-ostree kargs --unchanged-exit-77
+        --append-if-missing rd.driver.blacklist=nouveau
+        --append-if-missing modprobe.blacklist=nouveau
+        --append-if-missing nvidia-drm.modeset=1
+        --append-if-missing initcall_blacklist=simpledrm_platform_driver_init
+      register: result
+      changed_when: result.rc != 77
+      failed_when: not (result.rc == 0 or result.rc == 77)
+
+    - name: Disable Fedora Flatpak remote
+      tags: [ always ]
+      when: flatpak_fedora_system.rc == 0
+      become: true
+      command: flatpak remote-modify --system --disable fedora
+
+    # TODO: Remove all Flatpaks from Fedora remote
+    
+    # TODO: Make sure Flathub is added
+    
+    # TODO: Install core GNOME apps from Flathub
+    
+    - name: Install Nix
+      tags: [ always ]
+      when: is_nix_installed.rc == 1
+      become: true
+      shell: curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
