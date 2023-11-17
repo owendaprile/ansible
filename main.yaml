@@ -62,3 +62,9 @@
       when: is_nix_installed.rc == 1
       become: true
       shell: curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+
+    - name: Set user shell to fish
+      tags: [ always ]
+      user:
+        name: "{{ ansible_user_id }}"
+        shell: /usr/bin/fish
